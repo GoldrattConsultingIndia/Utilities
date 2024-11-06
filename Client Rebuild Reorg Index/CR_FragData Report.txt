@@ -1,0 +1,8 @@
+Onebeat Custom Report Input File
+Report Description: FragData Report
+file created:
+[Query Start Point]
+
+SELECT * FROM FragData
+
+[Query End Point]
