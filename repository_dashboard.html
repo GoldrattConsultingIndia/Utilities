@@ -165,6 +165,12 @@
             color: #333;
             font-weight: 600;
             border-bottom: 2px solid #ddd;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        table th:hover {
+            background: #e8e8e8;
         }
         
         table td {
@@ -224,6 +230,11 @@
 
         .repo-link:hover {
             text-decoration: underline;
+        }
+
+        .time-ago {
+            color: #999;
+            font-size: 0.9rem;
         }
         
         @keyframes slideDown {
@@ -301,6 +312,10 @@
             color: #666;
             margin-top: 10px;
         }
+
+        .sort-indicator {
+            margin-left: 5px;
+        }
         
         .footer {
             text-align: center;
@@ -314,6 +329,12 @@
             text-align: center;
             padding: 40px;
             color: #999;
+        }
+
+        .repo-count {
+            font-size: 0.85rem;
+            color: #666;
+            margin-left: auto;
         }
     </style>
 </head>
@@ -340,7 +361,7 @@
                 <div class="stat-number" id="recentRepos">--</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">Last Update</div>
+                <div class="stat-label">Latest Update</div>
                 <div class="stat-number" style="font-size: 1rem;" id="lastUpdate">--</div>
             </div>
         </div>
@@ -378,7 +399,7 @@
         </div>
         
         <div class="table-wrapper">
-            <h2>📋 Repository Details</h2>
+            <h2>📋 All Repositories - Last Update</h2>
             <div class="filter-section">
                 <input type="text" id="searchInput" placeholder="Search repositories by name or author...">
                 <button id="refreshBtn" class="refresh-btn">🔄 Refresh Data</button>
@@ -387,10 +408,11 @@
             <table id="dataTable">
                 <thead>
                     <tr>
-                        <th>Repository Name</th>
-                        <th>Last Commit Date</th>
-                        <th>Committed By</th>
-                        <th>Status</th>
+                        <th onclick="sortTable('name')">Repository Name <span class="sort-indicator" id="sort-name"></span></th>
+                        <th onclick="sortTable('date')">Last Update <span class="sort-indicator" id="sort-date">↓</span></th>
+                        <th onclick="sortTable('ago')">Time Ago <span class="sort-indicator" id="sort-ago"></span></th>
+                        <th onclick="sortTable('author')">Author <span class="sort-indicator" id="sort-author"></span></th>
+                        <th onclick="sortTable('status')">Status <span class="sort-indicator" id="sort-status"></span></th>
                     </tr>
                 </thead>
                 <tbody id="tableBody">
@@ -399,7 +421,7 @@
         </div>
         
         <div class="footer">
-            <p>Dashboard auto-refreshes every 6 hours | Data from GitHub API</p>
+            <p>Dashboard auto-refreshes every 6 hours | Data from GitHub API | All timestamps in local timezone</p>
         </div>
     </div>
 
@@ -410,6 +432,7 @@
         
         let repositoriesData = [];
         let charts = {};
+        let currentSort = { field: 'date', direction: 'desc' };
 
         // Show loading indicator
         function showLoading(show = true) {
@@ -461,14 +484,14 @@
 
                 // Process repository data
                 repositoriesData = repos.map(repo => {
-                    // Try to get the last commit author
                     const pushedAt = repo.pushed_at || repo.updated_at;
                     return {
                         name: repo.name,
                         url: repo.html_url,
                         date: pushedAt,
                         author: repo.owner.login,
-                        pushed_at: pushedAt
+                        pushed_at: pushedAt,
+                        dateObj: new Date(pushedAt)
                     };
                 }).sort((a, b) => new Date(b.date) - new Date(a.date));
 
@@ -524,6 +547,24 @@
             return Object.entries(authorCounts)
                 .sort((a, b) => b[1] - a[1])
                 .slice(0, 10);
+        }
+
+        // Calculate time ago string
+        function getTimeAgo(date) {
+            const now = new Date();
+            const seconds = Math.floor((now - date) / 1000);
+            
+            if (seconds < 60) return 'Just now';
+            const minutes = Math.floor(seconds / 60);
+            if (minutes < 60) return `${minutes}m ago`;
+            const hours = Math.floor(minutes / 60);
+            if (hours < 24) return `${hours}h ago`;
+            const days = Math.floor(hours / 24);
+            if (days < 30) return `${days}d ago`;
+            const months = Math.floor(days / 30);
+            if (months < 12) return `${months}mo ago`;
+            const years = Math.floor(months / 12);
+            return `${years}y ago`;
         }
 
         // Update all charts
@@ -763,13 +804,73 @@
             });
         }
 
+        // Sorting function
+        function sortTable(field) {
+            // Clear all sort indicators
+            document.querySelectorAll('.sort-indicator').forEach(el => el.textContent = '');
+            
+            // Toggle direction if same field
+            if (currentSort.field === field) {
+                currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.field = field;
+                currentSort.direction = 'desc';
+            }
+
+            // Set sort indicator
+            const indicator = document.getElementById(`sort-${field}`);
+            indicator.textContent = currentSort.direction === 'asc' ? '↑' : '↓';
+
+            // Sort data
+            const sorted = [...repositoriesData].sort((a, b) => {
+                let aVal, bVal;
+                
+                switch(field) {
+                    case 'name':
+                        aVal = a.name.toLowerCase();
+                        bVal = b.name.toLowerCase();
+                        break;
+                    case 'date':
+                        aVal = new Date(a.date);
+                        bVal = new Date(b.date);
+                        break;
+                    case 'ago':
+                        aVal = new Date(a.date).getTime();
+                        bVal = new Date(b.date).getTime();
+                        break;
+                    case 'author':
+                        aVal = a.author.toLowerCase();
+                        bVal = b.author.toLowerCase();
+                        break;
+                    case 'status':
+                        const getStatus = (repo) => {
+                            const today = new Date();
+                            const monthsDiff = (today - new Date(repo.date)) / (1000 * 60 * 60 * 24 * 30);
+                            if (monthsDiff <= 3) return 0;
+                            if (monthsDiff <= 6) return 1;
+                            if (monthsDiff <= 12) return 2;
+                            return 3;
+                        };
+                        aVal = getStatus(a);
+                        bVal = getStatus(b);
+                        break;
+                }
+
+                if (aVal < bVal) return currentSort.direction === 'asc' ? -1 : 1;
+                if (aVal > bVal) return currentSort.direction === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            populateTable(sorted);
+        }
+
         // Populate table
         function populateTable(data = repositoriesData) {
             const tbody = document.getElementById('tableBody');
             tbody.innerHTML = '';
 
             if (data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No repositories found</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No repositories found</td></tr>';
                 return;
             }
 
@@ -777,6 +878,7 @@
                 const date = new Date(repo.date);
                 const today = new Date();
                 const monthsDiff = (today - date) / (1000 * 60 * 60 * 24 * 30);
+                const timeAgo = getTimeAgo(date);
                 
                 let statusClass, statusText;
                 if (monthsDiff <= 3) {
@@ -797,6 +899,7 @@
                 row.innerHTML = `
                     <td><a href="${repo.url}" target="_blank" class="repo-link" title="Open on GitHub">${repo.name} ↗</a></td>
                     <td>${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                    <td><span class="time-ago">${timeAgo}</span></td>
                     <td><span class="author-badge">${repo.author}</span></td>
                     <td><span class="${statusClass}">${statusText}</span></td>
                 `;
@@ -836,7 +939,7 @@
         // Show empty state
         function showEmptyState() {
             const tbody = document.getElementById('tableBody');
-            tbody.innerHTML = '<tr><td colspan="4" class="empty-state">Unable to load data. Please refresh or check your connection.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" class="empty-state">Unable to load data. Please refresh or check your connection.</td></tr>';
         }
 
         // Auto-refresh every 6 hours (21600000 ms)
