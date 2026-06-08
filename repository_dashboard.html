@@ -3,8 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>GoldrattConsultingIndia - Repository Activity Dashboard</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@latest"></script>
     <style>
         * {
             margin: 0;
@@ -331,17 +334,20 @@
             color: #999;
         }
 
-        .repo-count {
-            font-size: 0.85rem;
-            color: #666;
-            margin-left: auto;
-        }
-
         .loading-data {
             text-align: center;
             padding: 20px;
             color: #667eea;
             font-weight: 600;
+        }
+
+        .debug-info {
+            background: #f0f0f0;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 0.85rem;
+            color: #333;
+            margin-top: 10px;
         }
     </style>
 </head>
@@ -413,6 +419,7 @@
                 <div class="last-updated" id="lastUpdatedTime">Never updated</div>
             </div>
             <div id="loadingMessage" class="loading-data" style="display: none;">⏳ Loading repositories... This may take a moment for large organizations.</div>
+            <div id="debugInfo" class="debug-info" style="display: none;"></div>
             <table id="dataTable">
                 <thead>
                     <tr>
@@ -436,19 +443,17 @@
     <script>
         const GITHUB_API_BASE = 'https://api.github.com';
         const ORG_NAME = 'GoldrattConsultingIndia';
-        const API_TIMEOUT = 30000; // 30 seconds
+        const API_TIMEOUT = 30000;
         
         let repositoriesData = [];
         let charts = {};
         let currentSort = { field: 'date', direction: 'desc' };
 
-        // Show loading indicator
         function showLoading(show = true) {
             document.getElementById('loadingIndicator').style.display = show ? 'inline-block' : 'none';
             document.getElementById('loadingMessage').style.display = show ? 'block' : 'none';
         }
 
-        // Show error message
         function showError(message) {
             const errorEl = document.getElementById('errorMessage');
             errorEl.textContent = '⚠️ ' + message;
@@ -458,95 +463,86 @@
             }, 8000);
         }
 
-        // Fetch all repositories with improved pagination handling
+        function updateDebugInfo(message) {
+            const debugEl = document.getElementById('debugInfo');
+            debugEl.style.display = 'block';
+            debugEl.textContent = message;
+            console.log(message);
+        }
+
         async function fetchRepositories() {
             showLoading(true);
+            updateDebugInfo('🔄 Starting fetch...');
+            
             try {
                 const repos = [];
                 let page = 1;
                 let hasMore = true;
                 const perPage = 100;
 
-                console.log('Starting to fetch repositories...');
-
                 while (hasMore) {
-                    try {
-                        console.log(`Fetching page ${page}...`);
-                        const response = await Promise.race([
-                            fetch(`${GITHUB_API_BASE}/orgs/${ORG_NAME}/repos?per_page=${perPage}&page=${page}&sort=updated&direction=desc`, {
-                                headers: {
-                                    'Accept': 'application/vnd.github.v3+json'
-                                }
-                            }),
-                            new Promise((_, reject) => 
-                                setTimeout(() => reject(new Error('API request timeout')), API_TIMEOUT)
-                            )
-                        ]);
+                    const url = `${GITHUB_API_BASE}/orgs/${ORG_NAME}/repos?per_page=${perPage}&page=${page}&sort=updated&direction=desc&t=${Date.now()}`;
+                    
+                    updateDebugInfo(`📥 Fetching page ${page}... (URL: ${url})`);
+                    console.log(`Fetching: ${url}`);
 
-                        if (!response.ok) {
-                            if (response.status === 403) {
-                                throw new Error('GitHub API rate limit exceeded. Please try again later.');
-                            }
-                            throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
-                        }
+                    const response = await Promise.race([
+                        fetch(url, {
+                            headers: {
+                                'Accept': 'application/vnd.github.v3+json',
+                                'Cache-Control': 'no-cache'
+                            },
+                            cache: 'no-store'
+                        }),
+                        new Promise((_, reject) => 
+                            setTimeout(() => reject(new Error('API request timeout')), API_TIMEOUT)
+                        )
+                    ]);
 
-                        const data = await response.json();
-                        
-                        if (!Array.isArray(data)) {
-                            console.error('Unexpected response format:', data);
-                            hasMore = false;
-                            break;
-                        }
-
-                        if (data.length === 0) {
-                            console.log('No more repositories to fetch');
-                            hasMore = false;
-                        } else {
-                            console.log(`Page ${page}: Fetched ${data.length} repositories`);
-                            repos.push(...data);
-                            page++;
-
-                            // If we got fewer results than requested, this is the last page
-                            if (data.length < perPage) {
-                                hasMore = false;
-                            }
-                        }
-
-                        // Add a small delay between requests to avoid rate limiting
-                        await new Promise(resolve => setTimeout(resolve, 200));
-
-                    } catch (pageError) {
-                        console.error(`Error fetching page ${page}:`, pageError);
-                        if (repos.length === 0) {
-                            throw pageError;
-                        }
-                        hasMore = false; // Stop trying if we hit an error but have some data
+                    if (!response.ok) {
+                        throw new Error(`API error: ${response.status} ${response.statusText}`);
                     }
+
+                    const data = await response.json();
+                    
+                    if (!Array.isArray(data)) {
+                        throw new Error('Invalid response format');
+                    }
+
+                    if (data.length === 0) {
+                        hasMore = false;
+                    } else {
+                        repos.push(...data);
+                        updateDebugInfo(`✅ Page ${page}: ${data.length} repos (Total: ${repos.length})`);
+                        page++;
+
+                        if (data.length < perPage) {
+                            hasMore = false;
+                        }
+                    }
+
+                    await new Promise(resolve => setTimeout(resolve, 100));
                 }
 
-                console.log(`Total repositories fetched: ${repos.length}`);
+                updateDebugInfo(`✨ Loaded ${repos.length} total repositories`);
 
-                // Process repository data
-                repositoriesData = repos.map(repo => {
-                    const pushedAt = repo.pushed_at || repo.updated_at;
-                    return {
-                        name: repo.name,
-                        url: repo.html_url,
-                        date: pushedAt,
-                        author: repo.owner.login,
-                        pushed_at: pushedAt,
-                        dateObj: new Date(pushedAt)
-                    };
-                }).sort((a, b) => new Date(b.date) - new Date(a.date));
+                repositoriesData = repos.map(repo => ({
+                    name: repo.name,
+                    url: repo.html_url,
+                    date: repo.pushed_at || repo.updated_at,
+                    author: repo.owner.login,
+                    pushed_at: repo.pushed_at || repo.updated_at,
+                    dateObj: new Date(repo.pushed_at || repo.updated_at)
+                })).sort((a, b) => new Date(b.date) - new Date(a.date));
 
-                console.log('Data processing complete. Updating dashboard...');
                 updateDashboard();
                 updateLastUpdatedTime();
                 showLoading(false);
                 
             } catch (error) {
-                console.error('Error fetching repositories:', error);
-                showError(`Failed to fetch repository data: ${error.message}`);
+                console.error('Fetch error:', error);
+                updateDebugInfo(`❌ Error: ${error.message}`);
+                showError(`Failed to fetch: ${error.message}`);
                 showLoading(false);
                 if (repositoriesData.length === 0) {
                     showEmptyState();
@@ -554,7 +550,6 @@
             }
         }
 
-        // Update dashboard with fetched data
         function updateDashboard() {
             if (repositoriesData.length === 0) {
                 showEmptyState();
@@ -566,7 +561,6 @@
             updateCharts();
         }
 
-        // Calculate statistics
         function calculateStats() {
             const authorCount = new Set(repositoriesData.map(r => r.author)).size;
             const today = new Date();
@@ -583,7 +577,6 @@
             }
         }
 
-        // Process data for bar chart
         function getAuthorCommitCounts() {
             const authorCounts = {};
             repositoriesData.forEach(repo => {
@@ -594,7 +587,6 @@
                 .slice(0, 10);
         }
 
-        // Calculate time ago string
         function getTimeAgo(date) {
             const now = new Date();
             const seconds = Math.floor((now - date) / 1000);
@@ -612,7 +604,6 @@
             return `${years}y ago`;
         }
 
-        // Update all charts
         function updateCharts() {
             try {
                 updateBarChart();
@@ -620,18 +611,15 @@
                 updateAgeChart();
                 updateTimelineChart();
             } catch (err) {
-                console.error('Error updating charts:', err);
+                console.error('Chart error:', err);
             }
         }
 
-        // Update bar chart
         function updateBarChart() {
             const authorData = getAuthorCommitCounts();
             const ctx = document.getElementById('barChart').getContext('2d');
             
-            if (charts.barChart) {
-                charts.barChart.destroy();
-            }
+            if (charts.barChart) charts.barChart.destroy();
 
             charts.barChart = new Chart(ctx, {
                 type: 'bar',
@@ -640,18 +628,7 @@
                     datasets: [{
                         label: 'Number of Repositories',
                         data: authorData.map(a => a[1]),
-                        backgroundColor: [
-                            '#667eea',
-                            '#764ba2',
-                            '#f093fb',
-                            '#4facfe',
-                            '#00f2fe',
-                            '#43e97b',
-                            '#fa709a',
-                            '#fee140',
-                            '#30cfd0',
-                            '#330867'
-                        ],
+                        backgroundColor: ['#667eea', '#764ba2', '#f093fb', '#4facfe', '#00f2fe', '#43e97b', '#fa709a', '#fee140', '#30cfd0', '#330867'],
                         borderRadius: 5,
                         borderSkipped: false
                     }]
@@ -659,31 +636,17 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            display: false
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                stepSize: 1
-                            }
-                        }
-                    }
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
                 }
             });
         }
 
-        // Update pie chart
         function updatePieChart() {
             const authorData = getAuthorCommitCounts();
             const ctx = document.getElementById('pieChart').getContext('2d');
             
-            if (charts.pieChart) {
-                charts.pieChart.destroy();
-            }
+            if (charts.pieChart) charts.pieChart.destroy();
 
             charts.pieChart = new Chart(ctx, {
                 type: 'doughnut',
@@ -691,18 +654,7 @@
                     labels: authorData.map(a => a[0]),
                     datasets: [{
                         data: authorData.map(a => a[1]),
-                        backgroundColor: [
-                            '#667eea',
-                            '#764ba2',
-                            '#f093fb',
-                            '#4facfe',
-                            '#00f2fe',
-                            '#43e97b',
-                            '#fa709a',
-                            '#fee140',
-                            '#30cfd0',
-                            '#330867'
-                        ],
+                        backgroundColor: ['#667eea', '#764ba2', '#f093fb', '#4facfe', '#00f2fe', '#43e97b', '#fa709a', '#fee140', '#30cfd0', '#330867'],
                         borderColor: '#fff',
                         borderWidth: 2
                     }]
@@ -710,55 +662,42 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'right'
-                        }
-                    }
+                    plugins: { legend: { position: 'right' } }
                 }
             });
         }
 
-        // Update age distribution chart
         function updateAgeChart() {
-            function getAgeDistribution() {
-                const today = new Date();
-                const distribution = {
-                    'Last 3 months': 0,
-                    '3-6 months': 0,
-                    '6-12 months': 0,
-                    '1-2 years': 0,
-                    '2+ years': 0
-                };
+            const today = new Date();
+            const distribution = {
+                'Last 3 months': 0,
+                '3-6 months': 0,
+                '6-12 months': 0,
+                '1-2 years': 0,
+                '2+ years': 0
+            };
 
-                repositoriesData.forEach(repo => {
-                    const repoDate = new Date(repo.date);
-                    const monthsDiff = (today - repoDate) / (1000 * 60 * 60 * 24 * 30);
+            repositoriesData.forEach(repo => {
+                const repoDate = new Date(repo.date);
+                const monthsDiff = (today - repoDate) / (1000 * 60 * 60 * 24 * 30);
 
-                    if (monthsDiff <= 3) distribution['Last 3 months']++;
-                    else if (monthsDiff <= 6) distribution['3-6 months']++;
-                    else if (monthsDiff <= 12) distribution['6-12 months']++;
-                    else if (monthsDiff <= 24) distribution['1-2 years']++;
-                    else distribution['2+ years']++;
-                });
+                if (monthsDiff <= 3) distribution['Last 3 months']++;
+                else if (monthsDiff <= 6) distribution['3-6 months']++;
+                else if (monthsDiff <= 12) distribution['6-12 months']++;
+                else if (monthsDiff <= 24) distribution['1-2 years']++;
+                else distribution['2+ years']++;
+            });
 
-                return distribution;
-            }
-
-            const ageData = getAgeDistribution();
             const ctx = document.getElementById('ageChart').getContext('2d');
-            
-            if (charts.ageChart) {
-                charts.ageChart.destroy();
-            }
+            if (charts.ageChart) charts.ageChart.destroy();
 
             charts.ageChart = new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: Object.keys(ageData),
+                    labels: Object.keys(distribution),
                     datasets: [{
                         label: 'Number of Repositories',
-                        data: Object.values(ageData),
+                        data: Object.values(distribution),
                         backgroundColor: '#667eea',
                         borderRadius: 5,
                         borderSkipped: false
@@ -767,61 +706,41 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            display: false
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                stepSize: 1
-                            }
-                        }
-                    }
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
                 }
             });
         }
 
-        // Update timeline chart
         function updateTimelineChart() {
-            function getMonthlyTimeline() {
-                const timeline = {};
-                const today = new Date();
+            const timeline = {};
+            const today = new Date();
 
-                for (let i = 11; i >= 0; i--) {
-                    const date = new Date(today);
-                    date.setMonth(date.getMonth() - i);
-                    const monthKey = date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
-                    timeline[monthKey] = 0;
+            for (let i = 11; i >= 0; i--) {
+                const date = new Date(today);
+                date.setMonth(date.getMonth() - i);
+                const monthKey = date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+                timeline[monthKey] = 0;
+            }
+
+            repositoriesData.forEach(repo => {
+                const repoDate = new Date(repo.date);
+                const monthKey = repoDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+                if (monthKey in timeline) {
+                    timeline[monthKey]++;
                 }
+            });
 
-                repositoriesData.forEach(repo => {
-                    const repoDate = new Date(repo.date);
-                    const monthKey = repoDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
-                    if (monthKey in timeline) {
-                        timeline[monthKey]++;
-                    }
-                });
-
-                return timeline;
-            }
-
-            const timelineData = getMonthlyTimeline();
             const ctx = document.getElementById('timelineChart').getContext('2d');
-            
-            if (charts.timelineChart) {
-                charts.timelineChart.destroy();
-            }
+            if (charts.timelineChart) charts.timelineChart.destroy();
 
             charts.timelineChart = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: Object.keys(timelineData),
+                    labels: Object.keys(timeline),
                     datasets: [{
                         label: 'Commits Per Month',
-                        data: Object.values(timelineData),
+                        data: Object.values(timeline),
                         borderColor: '#667eea',
                         backgroundColor: 'rgba(102, 126, 234, 0.1)',
                         tension: 0.4,
@@ -836,29 +755,15 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            display: false
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                stepSize: 1
-                            }
-                        }
-                    }
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
                 }
             });
         }
 
-        // Sorting function
         function sortTable(field) {
-            // Clear all sort indicators
             document.querySelectorAll('.sort-indicator').forEach(el => el.textContent = '');
             
-            // Toggle direction if same field
             if (currentSort.field === field) {
                 currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
             } else {
@@ -866,11 +771,8 @@
                 currentSort.direction = 'desc';
             }
 
-            // Set sort indicator
-            const indicator = document.getElementById(`sort-${field}`);
-            indicator.textContent = currentSort.direction === 'asc' ? '↑' : '↓';
+            document.getElementById(`sort-${field}`).textContent = currentSort.direction === 'asc' ? '↑' : '↓';
 
-            // Sort data
             const sorted = [...repositoriesData].sort((a, b) => {
                 let aVal, bVal;
                 
@@ -913,7 +815,6 @@
             populateTable(sorted);
         }
 
-        // Populate table
         function populateTable(data = repositoriesData) {
             const tbody = document.getElementById('tableBody');
             tbody.innerHTML = '';
@@ -956,7 +857,6 @@
             });
         }
 
-        // Search functionality
         document.getElementById('searchInput').addEventListener('keyup', (e) => {
             const searchTerm = e.target.value.toLowerCase();
             const filtered = repositoriesData.filter(repo =>
@@ -966,7 +866,6 @@
             populateTable(filtered);
         });
 
-        // Refresh button
         document.getElementById('refreshBtn').addEventListener('click', async () => {
             const btn = document.getElementById('refreshBtn');
             btn.disabled = true;
@@ -978,30 +877,25 @@
             btn.textContent = '🔄 Refresh Data';
         });
 
-        // Update last updated time display
         function updateLastUpdatedTime() {
             const now = new Date();
             document.getElementById('lastUpdatedTime').textContent = 
                 `Last updated: ${now.toLocaleString()}`;
         }
 
-        // Show empty state
         function showEmptyState() {
             const tbody = document.getElementById('tableBody');
             tbody.innerHTML = '<tr><td colspan="5" class="empty-state">Unable to load data. Please refresh or check your connection.</td></tr>';
         }
 
-        // Auto-refresh every 6 hours (21600000 ms)
-        const AUTO_REFRESH_INTERVAL = 6 * 60 * 60 * 1000;
-        setInterval(() => {
-            console.log('Auto-refreshing dashboard...');
-            fetchRepositories();
-        }, AUTO_REFRESH_INTERVAL);
-
-        // Initial load
         window.addEventListener('load', () => {
             fetchRepositories();
         });
+
+        const AUTO_REFRESH_INTERVAL = 6 * 60 * 60 * 1000;
+        setInterval(() => {
+            fetchRepositories();
+        }, AUTO_REFRESH_INTERVAL);
     </script>
 </body>
 </html>
