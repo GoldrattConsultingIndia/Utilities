@@ -487,17 +487,15 @@
                     console.log(`Fetching: ${url}`);
 
                     const response = await Promise.race([
-                        fetch(url, {
-                            headers: {
-                                'Accept': 'application/vnd.github.v3+json',
-                                'Cache-Control': 'no-cache'
-                            },
-                            cache: 'no-store'
-                        }),
-                        new Promise((_, reject) => 
-                            setTimeout(() => reject(new Error('API request timeout')), API_TIMEOUT)
-                        )
-                    ]);
+    fetch(url, {
+        headers: {
+            'Accept': 'application/vnd.github.v3+json'
+        }
+    }),
+    new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('API request timeout')), API_TIMEOUT)
+    )
+]);
 
                     if (!response.ok) {
                         throw new Error(`API error: ${response.status} ${response.statusText}`);
