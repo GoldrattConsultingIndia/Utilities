@@ -41,6 +41,35 @@
             font-size: 1.1rem;
             opacity: 0.95;
         }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 0.8s linear infinite;
+            margin-left: 10px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            background: #ef4444;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .error-message.show {
+            display: block;
+            animation: slideDown 0.3s ease-out;
+        }
         
         .stats-grid {
             display: grid;
@@ -167,7 +196,7 @@
             font-weight: 500;
         }
         
-        .old-badge {
+        .moderate-badge {
             display: inline-block;
             background: #f59e0b;
             color: white;
@@ -175,6 +204,26 @@
             border-radius: 20px;
             font-size: 0.85rem;
             font-weight: 500;
+        }
+
+        .old-badge {
+            display: inline-block;
+            background: #ef4444;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .repo-link {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .repo-link:hover {
+            text-decoration: underline;
         }
         
         @keyframes slideDown {
@@ -205,6 +254,10 @@
             border-radius: 10px;
             margin-bottom: 30px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
         }
         
         .filter-section input {
@@ -212,14 +265,41 @@
             border: 2px solid #ddd;
             border-radius: 5px;
             font-size: 1rem;
-            width: 100%;
-            max-width: 400px;
+            flex: 1;
+            min-width: 250px;
             transition: border-color 0.3s ease;
         }
         
         .filter-section input:focus {
             outline: none;
             border-color: #667eea;
+        }
+
+        .refresh-btn {
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        .refresh-btn:hover {
+            background: #764ba2;
+        }
+
+        .refresh-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .last-updated {
+            font-size: 0.9rem;
+            color: #666;
+            margin-top: 10px;
         }
         
         .footer {
@@ -229,31 +309,39 @@
             opacity: 0.8;
             margin-top: 40px;
         }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>📊 Repository Activity Dashboard</h1>
+            <h1>📊 Repository Activity Dashboard <span id="loadingIndicator" class="loading-spinner" style="display: none;"></span></h1>
             <p>GoldrattConsultingIndia Organization - Repository Metrics & Analytics</p>
         </div>
+
+        <div id="errorMessage" class="error-message"></div>
         
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="stat-label">Total Repositories</div>
-                <div class="stat-number" id="totalRepos">70</div>
+                <div class="stat-number" id="totalRepos">--</div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Active Contributors</div>
-                <div class="stat-number" id="totalContributors">15</div>
+                <div class="stat-number" id="totalContributors">--</div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Recent Updates (6 months)</div>
-                <div class="stat-number" id="recentRepos">20</div>
+                <div class="stat-number" id="recentRepos">--</div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Last Update</div>
-                <div class="stat-number" style="font-size: 1rem;">2026-06-06</div>
+                <div class="stat-number" style="font-size: 1rem;" id="lastUpdate">--</div>
             </div>
         </div>
         
@@ -293,6 +381,8 @@
             <h2>📋 Repository Details</h2>
             <div class="filter-section">
                 <input type="text" id="searchInput" placeholder="Search repositories by name or author...">
+                <button id="refreshBtn" class="refresh-btn">🔄 Refresh Data</button>
+                <div class="last-updated" id="lastUpdatedTime">Never updated</div>
             </div>
             <table id="dataTable">
                 <thead>
@@ -309,90 +399,120 @@
         </div>
         
         <div class="footer">
-            <p>Last Updated: 2026-06-06 | Dashboard auto-refreshes daily</p>
+            <p>Dashboard auto-refreshes every 6 hours | Data from GitHub API</p>
         </div>
     </div>
 
     <script>
-        // Repository data
-        const repositoriesData = [
-            {"name":"GreenPly","date":"2026-06-06T01:25:12Z","author":"bharatsharma-gc"},
-            {"name":"Voltas","date":"2026-06-06T05:37:57Z","author":"techteamgcindia"},
-            {"name":"FullkitManagement","date":"2026-06-05T05:42:13Z","author":"kamleshwarkocharekar"},
-            {"name":"Titan-Jewelry","date":"2026-05-22T11:13:07Z","author":"vishaltiwarigc"},
-            {"name":"Max","date":"2026-05-22T10:38:58Z","author":"anilmohandasgoldrattgroupin"},
-            {"name":"Marks-and-Spencers","date":"2026-05-07T10:47:07Z","author":"PunitMulley"},
-            {"name":"Postgre-Encryption","date":"2026-05-05T05:10:27Z","author":"kamleshwark"},
-            {"name":"EasyBuy","date":"2026-03-27T11:02:25Z","author":"halemathvijay"},
-            {"name":"StyleBaazar","date":"2026-03-10T06:51:38Z","author":"PunitMulley"},
-            {"name":"GMS","date":"2026-02-23T04:49:51Z","author":"Srivisakan-105"},
-            {"name":"Madura","date":"2026-02-13T07:16:43Z","author":"halemathvijay"},
-            {"name":"Shoppers-Stop","date":"2026-02-04T10:34:14Z","author":"PunitMulley"},
-            {"name":"Novel-Jewels","date":"2026-01-13T06:51:31Z","author":"Srivisakan-105"},
-            {"name":"GMS-DOT-NET","date":"2026-01-07T07:27:55Z","author":"Hanusha-Loujith"},
-            {"name":"Pantaloons","date":"2025-12-18T04:13:13Z","author":"halemathvijay"},
-            {"name":"Opium","date":"2025-10-08T09:54:42Z","author":"halemathvijay"},
-            {"name":"Clovia","date":"2025-10-06T16:12:24Z","author":"techteamgcindia"},
-            {"name":"Jaypore","date":"2025-10-03T12:18:49Z","author":"halemathvijay"},
-            {"name":"GIL","date":"2025-07-12T05:06:11Z","author":"Anita-GC"},
-            {"name":"TCNS","date":"2025-06-12T11:45:20Z","author":"halemathvijay"},
-            {"name":"DPAbhushan","date":"2025-04-15T12:14:37Z","author":"PunitMulley"},
-            {"name":"TIL","date":"2025-04-11T11:06:59Z","author":"Anita-GC"},
-            {"name":"BeatPlan","date":"2025-03-24T11:41:40Z","author":"kamleshwark"},
-            {"name":"General-Support-Solutions","date":"2025-03-17T06:10:10Z","author":"halemathvijay"},
-            {"name":"Finolex","date":"2025-03-11T10:42:24Z","author":"Anita-GC"},
-            {"name":"RMC","date":"2025-02-14T05:41:00Z","author":"PunitMulley"},
-            {"name":"DBEncryption","date":"2024-12-02T09:01:12Z","author":"techteamgcindia"},
-            {"name":"Accelerator","date":"2024-11-22T10:32:13Z","author":"Anita-GC"},
-            {"name":"Utilities","date":"2024-11-06T05:53:11Z","author":"halemathvijay"},
-            {"name":"Prism-Cement","date":"2024-10-16T07:32:49Z","author":"PunitMulley"},
-            {"name":"CD-Tech","date":"2024-10-10T07:04:43Z","author":"PunitMulley"},
-            {"name":"M-B","date":"2024-10-08T08:24:08Z","author":"techteamgcindia"},
-            {"name":"Myntra","date":"2024-08-03T06:13:40Z","author":"techteamgcindia"},
-            {"name":"AzureBlob","date":"2024-08-03T07:42:42Z","author":"techteamgcindia"},
-            {"name":"Caratlane","date":"2024-08-03T07:52:52Z","author":"techteamgcindia"},
-            {"name":"DTMS_GC","date":"2024-08-03T09:57:09Z","author":"techteamgcindia"},
-            {"name":"LicenseManager","date":"2024-08-03T11:08:59Z","author":"techteamgcindia"},
-            {"name":"Halfrin","date":"2024-08-03T10:13:54Z","author":"techteamgcindia"},
-            {"name":"Major","date":"2024-08-03T11:14:25Z","author":"techteamgcindia"},
-            {"name":"Ace","date":"2024-08-03T07:33:01Z","author":"techteamgcindia"},
-            {"name":"Masaba","date":"2024-08-03T11:41:59Z","author":"techteamgcindia"},
-            {"name":"Metro","date":"2024-08-03T11:45:45Z","author":"techteamgcindia"},
-            {"name":"Moons","date":"2024-08-03T11:47:21Z","author":"techteamgcindia"},
-            {"name":"Tasva","date":"2024-08-03T12:02:26Z","author":"techteamgcindia"},
-            {"name":"Titan-Eye","date":"2024-08-03T12:10:01Z","author":"techteamgcindia"},
-            {"name":"Titan-Watches","date":"2024-08-03T12:13:54Z","author":"techteamgcindia"},
-            {"name":"TMJ","date":"2024-08-03T12:15:33Z","author":"techteamgcindia"},
-            {"name":"VSL","date":"2024-08-03T12:17:03Z","author":"techteamgcindia"},
-            {"name":"Zeno-Health","date":"2024-08-03T12:19:01Z","author":"techteamgcindia"},
-            {"name":"Zivame","date":"2024-08-03T12:20:54Z","author":"techteamgcindia"},
-            {"name":"JCB","date":"2024-08-03T10:44:24Z","author":"techteamgcindia"},
-            {"name":"JIT","date":"2024-08-03T10:48:32Z","author":"techteamgcindia"},
-            {"name":"Kito","date":"2024-08-03T10:55:47Z","author":"techteamgcindia"},
-            {"name":"Kurlon","date":"2024-08-03T11:00:19Z","author":"techteamgcindia"},
-            {"name":"Infinity","date":"2024-08-03T09:52:07Z","author":"techteamgcindia"},
-            {"name":"Onebeat_Docs","date":"2023-11-22T16:29:21Z","author":"techteamgcindia"},
-            {"name":"Onebeat-Plugin","date":"2023-05-24T07:32:42Z","author":"HanushaLoujith"},
-            {"name":"API","date":"2023-01-13T08:02:48Z","author":"techteamgcindia"},
-            {"name":"Autoload_OBP_Plugin","date":"2021-10-18T05:44:56Z","author":"techteamgcindia"},
-            {"name":"Century-LED","date":"2021-03-16T14:29:48Z","author":"techteamgcindia"},
-            {"name":"Aukera","date":"2026-01-24T10:58:27Z","author":"techteamgcindia"},
-            {"name":"Ethos","date":"2025-09-17T10:24:58Z","author":"techteamgcindia"},
-            {"name":"HRJ-Tiles-JBD","date":"2025-08-19T11:44:31Z","author":"techteamgcindia"},
-            {"name":"Spencer","date":"2025-07-12T04:39:41Z","author":"techteamgcindia"},
-            {"name":"Reliance-Jewels","date":"2025-05-16T08:12:20Z","author":"techteamgcindia"},
-            {"name":"SandN","date":"2025-02-04T08:41:44Z","author":"techteamgcindia"},
-        ];
+        const GITHUB_API_BASE = 'https://api.github.com';
+        const ORG_NAME = 'GoldrattConsultingIndia';
+        const API_TIMEOUT = 30000; // 30 seconds
+        
+        let repositoriesData = [];
+        let charts = {};
+
+        // Show loading indicator
+        function showLoading(show = true) {
+            document.getElementById('loadingIndicator').style.display = show ? 'inline-block' : 'none';
+        }
+
+        // Show error message
+        function showError(message) {
+            const errorEl = document.getElementById('errorMessage');
+            errorEl.textContent = '⚠️ ' + message;
+            errorEl.classList.add('show');
+            setTimeout(() => {
+                errorEl.classList.remove('show');
+            }, 8000);
+        }
+
+        // Fetch repositories from GitHub API
+        async function fetchRepositories() {
+            showLoading(true);
+            try {
+                const repos = [];
+                let page = 1;
+                let hasMore = true;
+
+                while (hasMore) {
+                    const response = await Promise.race([
+                        fetch(`${GITHUB_API_BASE}/orgs/${ORG_NAME}/repos?per_page=100&page=${page}&sort=updated&direction=desc`),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('API request timeout')), API_TIMEOUT))
+                    ]);
+
+                    if (!response.ok) {
+                        throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
+                    }
+
+                    const data = await response.json();
+                    
+                    if (data.length === 0) {
+                        hasMore = false;
+                    } else {
+                        repos.push(...data);
+                        page++;
+                    }
+
+                    // Check if we got fewer results than requested (indicates last page)
+                    if (data.length < 100) {
+                        hasMore = false;
+                    }
+                }
+
+                // Process repository data
+                repositoriesData = repos.map(repo => {
+                    // Try to get the last commit author
+                    const pushedAt = repo.pushed_at || repo.updated_at;
+                    return {
+                        name: repo.name,
+                        url: repo.html_url,
+                        date: pushedAt,
+                        author: repo.owner.login,
+                        pushed_at: pushedAt
+                    };
+                }).sort((a, b) => new Date(b.date) - new Date(a.date));
+
+                updateDashboard();
+                updateLastUpdatedTime();
+                showLoading(false);
+                
+            } catch (error) {
+                console.error('Error fetching repositories:', error);
+                showError(`Failed to fetch repository data: ${error.message}. Using cached data if available.`);
+                showLoading(false);
+                if (repositoriesData.length === 0) {
+                    showEmptyState();
+                }
+            }
+        }
+
+        // Update dashboard with fetched data
+        function updateDashboard() {
+            if (repositoriesData.length === 0) {
+                showEmptyState();
+                return;
+            }
+
+            calculateStats();
+            populateTable();
+            updateCharts();
+        }
 
         // Calculate statistics
         function calculateStats() {
             const authorCount = new Set(repositoriesData.map(r => r.author)).size;
             const today = new Date();
-            const sixMonthsAgo = new Date(today.setMonth(today.getMonth() - 6));
+            const sixMonthsAgo = new Date(today.getFullYear(), today.getMonth() - 6, today.getDate());
             const recentCount = repositoriesData.filter(r => new Date(r.date) > sixMonthsAgo).length;
             
+            document.getElementById('totalRepos').textContent = repositoriesData.length;
             document.getElementById('totalContributors').textContent = authorCount;
             document.getElementById('recentRepos').textContent = recentCount;
+            
+            if (repositoriesData.length > 0) {
+                const latestDate = new Date(repositoriesData[0].date);
+                document.getElementById('lastUpdate').textContent = latestDate.toLocaleDateString();
+            }
         }
 
         // Process data for bar chart
@@ -406,224 +526,279 @@
                 .slice(0, 10);
         }
 
-        // Create bar chart
-        const barCtx = document.getElementById('barChart').getContext('2d');
-        const authorData = getAuthorCommitCounts();
-        new Chart(barCtx, {
-            type: 'bar',
-            data: {
-                labels: authorData.map(a => a[0]),
-                datasets: [{
-                    label: 'Number of Repositories',
-                    data: authorData.map(a => a[1]),
-                    backgroundColor: [
-                        '#667eea',
-                        '#764ba2',
-                        '#f093fb',
-                        '#4facfe',
-                        '#00f2fe',
-                        '#43e97b',
-                        '#fa709a',
-                        '#fee140',
-                        '#30cfd0',
-                        '#330867'
-                    ],
-                    borderRadius: 5,
-                    borderSkipped: false
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            stepSize: 1
-                        }
-                    }
-                }
-            }
-        });
-
-        // Create pie chart
-        const pieCtx = document.getElementById('pieChart').getContext('2d');
-        new Chart(pieCtx, {
-            type: 'doughnut',
-            data: {
-                labels: authorData.map(a => a[0]),
-                datasets: [{
-                    data: authorData.map(a => a[1]),
-                    backgroundColor: [
-                        '#667eea',
-                        '#764ba2',
-                        '#f093fb',
-                        '#4facfe',
-                        '#00f2fe',
-                        '#43e97b',
-                        '#fa709a',
-                        '#fee140',
-                        '#30cfd0',
-                        '#330867'
-                    ],
-                    borderColor: '#fff',
-                    borderWidth: 2
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'right'
-                    }
-                }
-            }
-        });
-
-        // Create age distribution chart
-        function getAgeDistribution() {
-            const today = new Date();
-            const distribution = {
-                'Last 3 months': 0,
-                '3-6 months': 0,
-                '6-12 months': 0,
-                '1-2 years': 0,
-                '2+ years': 0
-            };
-
-            repositoriesData.forEach(repo => {
-                const repoDate = new Date(repo.date);
-                const monthsDiff = (today - repoDate) / (1000 * 60 * 60 * 24 * 30);
-
-                if (monthsDiff <= 3) distribution['Last 3 months']++;
-                else if (monthsDiff <= 6) distribution['3-6 months']++;
-                else if (monthsDiff <= 12) distribution['6-12 months']++;
-                else if (monthsDiff <= 24) distribution['1-2 years']++;
-                else distribution['2+ years']++;
-            });
-
-            return distribution;
+        // Update all charts
+        function updateCharts() {
+            updateBarChart();
+            updatePieChart();
+            updateAgeChart();
+            updateTimelineChart();
         }
 
-        const ageCtx = document.getElementById('ageChart').getContext('2d');
-        const ageData = getAgeDistribution();
-        new Chart(ageCtx, {
-            type: 'bar',
-            data: {
-                labels: Object.keys(ageData),
-                datasets: [{
-                    label: 'Number of Repositories',
-                    data: Object.values(ageData),
-                    backgroundColor: '#667eea',
-                    borderRadius: 5,
-                    borderSkipped: false
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
+        // Update bar chart
+        function updateBarChart() {
+            const authorData = getAuthorCommitCounts();
+            const ctx = document.getElementById('barChart').getContext('2d');
+            
+            if (charts.barChart) {
+                charts.barChart.destroy();
+            }
+
+            charts.barChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: authorData.map(a => a[0]),
+                    datasets: [{
+                        label: 'Number of Repositories',
+                        data: authorData.map(a => a[1]),
+                        backgroundColor: [
+                            '#667eea',
+                            '#764ba2',
+                            '#f093fb',
+                            '#4facfe',
+                            '#00f2fe',
+                            '#43e97b',
+                            '#fa709a',
+                            '#fee140',
+                            '#30cfd0',
+                            '#330867'
+                        ],
+                        borderRadius: 5,
+                        borderSkipped: false
+                    }]
                 },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            stepSize: 1
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
                         }
                     }
-                }
-            }
-        });
-
-        // Create timeline chart
-        function getMonthlyTimeline() {
-            const timeline = {};
-            const today = new Date();
-
-            for (let i = 11; i >= 0; i--) {
-                const date = new Date(today);
-                date.setMonth(date.getMonth() - i);
-                const monthKey = date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
-                timeline[monthKey] = 0;
-            }
-
-            repositoriesData.forEach(repo => {
-                const repoDate = new Date(repo.date);
-                const monthKey = repoDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
-                if (monthKey in timeline) {
-                    timeline[monthKey]++;
                 }
             });
-
-            return timeline;
         }
 
-        const timelineCtx = document.getElementById('timelineChart').getContext('2d');
-        const timelineData = getMonthlyTimeline();
-        new Chart(timelineCtx, {
-            type: 'line',
-            data: {
-                labels: Object.keys(timelineData),
-                datasets: [{
-                    label: 'Commits Per Month',
-                    data: Object.values(timelineData),
-                    borderColor: '#667eea',
-                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                    tension: 0.4,
-                    fill: true,
-                    pointRadius: 5,
-                    pointHoverRadius: 7,
-                    pointBackgroundColor: '#667eea',
-                    pointBorderColor: '#fff',
-                    pointBorderWidth: 2
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
+        // Update pie chart
+        function updatePieChart() {
+            const authorData = getAuthorCommitCounts();
+            const ctx = document.getElementById('pieChart').getContext('2d');
+            
+            if (charts.pieChart) {
+                charts.pieChart.destroy();
+            }
+
+            charts.pieChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: authorData.map(a => a[0]),
+                    datasets: [{
+                        data: authorData.map(a => a[1]),
+                        backgroundColor: [
+                            '#667eea',
+                            '#764ba2',
+                            '#f093fb',
+                            '#4facfe',
+                            '#00f2fe',
+                            '#43e97b',
+                            '#fa709a',
+                            '#fee140',
+                            '#30cfd0',
+                            '#330867'
+                        ],
+                        borderColor: '#fff',
+                        borderWidth: 2
+                    }]
                 },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            stepSize: 1
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right'
                         }
                     }
                 }
+            });
+        }
+
+        // Update age distribution chart
+        function updateAgeChart() {
+            function getAgeDistribution() {
+                const today = new Date();
+                const distribution = {
+                    'Last 3 months': 0,
+                    '3-6 months': 0,
+                    '6-12 months': 0,
+                    '1-2 years': 0,
+                    '2+ years': 0
+                };
+
+                repositoriesData.forEach(repo => {
+                    const repoDate = new Date(repo.date);
+                    const monthsDiff = (today - repoDate) / (1000 * 60 * 60 * 24 * 30);
+
+                    if (monthsDiff <= 3) distribution['Last 3 months']++;
+                    else if (monthsDiff <= 6) distribution['3-6 months']++;
+                    else if (monthsDiff <= 12) distribution['6-12 months']++;
+                    else if (monthsDiff <= 24) distribution['1-2 years']++;
+                    else distribution['2+ years']++;
+                });
+
+                return distribution;
             }
-        });
+
+            const ageData = getAgeDistribution();
+            const ctx = document.getElementById('ageChart').getContext('2d');
+            
+            if (charts.ageChart) {
+                charts.ageChart.destroy();
+            }
+
+            charts.ageChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(ageData),
+                    datasets: [{
+                        label: 'Number of Repositories',
+                        data: Object.values(ageData),
+                        backgroundColor: '#667eea',
+                        borderRadius: 5,
+                        borderSkipped: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update timeline chart
+        function updateTimelineChart() {
+            function getMonthlyTimeline() {
+                const timeline = {};
+                const today = new Date();
+
+                for (let i = 11; i >= 0; i--) {
+                    const date = new Date(today);
+                    date.setMonth(date.getMonth() - i);
+                    const monthKey = date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+                    timeline[monthKey] = 0;
+                }
+
+                repositoriesData.forEach(repo => {
+                    const repoDate = new Date(repo.date);
+                    const monthKey = repoDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+                    if (monthKey in timeline) {
+                        timeline[monthKey]++;
+                    }
+                });
+
+                return timeline;
+            }
+
+            const timelineData = getMonthlyTimeline();
+            const ctx = document.getElementById('timelineChart').getContext('2d');
+            
+            if (charts.timelineChart) {
+                charts.timelineChart.destroy();
+            }
+
+            charts.timelineChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: Object.keys(timelineData),
+                    datasets: [{
+                        label: 'Commits Per Month',
+                        data: Object.values(timelineData),
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 5,
+                        pointHoverRadius: 7,
+                        pointBackgroundColor: '#667eea',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    }
+                }
+            });
+        }
 
         // Populate table
         function populateTable(data = repositoriesData) {
             const tbody = document.getElementById('tableBody');
             tbody.innerHTML = '';
 
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No repositories found</td></tr>';
+                return;
+            }
+
             data.forEach(repo => {
                 const date = new Date(repo.date);
                 const today = new Date();
                 const monthsDiff = (today - date) / (1000 * 60 * 60 * 24 * 30);
-                const status = monthsDiff <= 6 ? 'recent-badge' : monthsDiff <= 12 ? 'recent-badge' : 'old-badge';
-                const statusText = monthsDiff <= 6 ? 'Active' : monthsDiff <= 12 ? 'Moderate' : 'Inactive';
+                
+                let statusClass, statusText;
+                if (monthsDiff <= 3) {
+                    statusClass = 'recent-badge';
+                    statusText = 'Very Active';
+                } else if (monthsDiff <= 6) {
+                    statusClass = 'recent-badge';
+                    statusText = 'Active';
+                } else if (monthsDiff <= 12) {
+                    statusClass = 'moderate-badge';
+                    statusText = 'Moderate';
+                } else {
+                    statusClass = 'old-badge';
+                    statusText = 'Inactive';
+                }
 
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td><strong>${repo.name}</strong></td>
-                    <td>${date.toLocaleDateString()}</td>
+                    <td><a href="${repo.url}" target="_blank" class="repo-link" title="Open on GitHub">${repo.name} ↗</a></td>
+                    <td>${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
                     <td><span class="author-badge">${repo.author}</span></td>
-                    <td><span class="${status}">${statusText}</span></td>
+                    <td><span class="${statusClass}">${statusText}</span></td>
                 `;
                 tbody.appendChild(row);
             });
@@ -639,9 +814,42 @@
             populateTable(filtered);
         });
 
-        // Initialize
-        calculateStats();
-        populateTable();
+        // Refresh button
+        document.getElementById('refreshBtn').addEventListener('click', async () => {
+            const btn = document.getElementById('refreshBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Refreshing...';
+            
+            await fetchRepositories();
+            
+            btn.disabled = false;
+            btn.textContent = '🔄 Refresh Data';
+        });
+
+        // Update last updated time display
+        function updateLastUpdatedTime() {
+            const now = new Date();
+            document.getElementById('lastUpdatedTime').textContent = 
+                `Last updated: ${now.toLocaleString()}`;
+        }
+
+        // Show empty state
+        function showEmptyState() {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '<tr><td colspan="4" class="empty-state">Unable to load data. Please refresh or check your connection.</td></tr>';
+        }
+
+        // Auto-refresh every 6 hours (21600000 ms)
+        const AUTO_REFRESH_INTERVAL = 6 * 60 * 60 * 1000;
+        setInterval(() => {
+            console.log('Auto-refreshing dashboard...');
+            fetchRepositories();
+        }, AUTO_REFRESH_INTERVAL);
+
+        // Initial load
+        window.addEventListener('load', () => {
+            fetchRepositories();
+        });
     </script>
 </body>
 </html>
