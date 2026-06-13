@@ -126,7 +126,7 @@ async function main() {
       created_at: repo.created_at,
       default_branch: repo.default_branch,
       owner: repo.owner,
-      latest_commit_author: pickAuthor(repo, commit, contributor),
+      latest_commit_author: Person Name,
       top_contributor: contributor?.login || null,
       latest_commit_sha: commit?.sha || null,
       latest_commit_date: commit?.commit?.author?.date || repo.pushed_at || repo.updated_at,
