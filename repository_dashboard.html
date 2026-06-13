@@ -422,13 +422,13 @@
             <div id="debugInfo" class="debug-info" style="display: none;"></div>
             <table id="dataTable">
                 <thead>
-                    <tr>
+                   <tr>
                         <th onclick="sortTable('name')">Repository Name <span class="sort-indicator" id="sort-name"></span></th>
                         <th onclick="sortTable('date')">Last Update <span class="sort-indicator" id="sort-date">↓</span></th>
                         <th onclick="sortTable('ago')">Time Ago <span class="sort-indicator" id="sort-ago"></span></th>
                         <th onclick="sortTable('author')">Author <span class="sort-indicator" id="sort-author"></span></th>
-                        <th onclick="sortTable('visibility')">Status <span class="sort-indicator" id="sort-visibility"></span></th>
-                        <th onclick="sortTable('status')">Status <span class="sort-indicator" id="sort-status"></span></th>
+                        <th onclick="sortTable('visibility')">Visibility <span class="sort-indicator" id="sort-visibility"></span></th>
+                        <th onclick="sortTable('status')">Activity <span class="sort-indicator" id="sort-status"></span></th>
                     </tr>
                 </thead>
                 <tbody id="tableBody">
@@ -767,6 +767,10 @@
                         aVal = a.author.toLowerCase();
                         bVal = b.author.toLowerCase();
                         break;
+                    case 'visibility':
+                        aVal = a.private ? 1 : 0;
+                        bVal = b.private ? 1 : 0;
+                        break;
                     case 'status':
                         const getStatus = (repo) => {
                             const today = new Date();
@@ -794,7 +798,7 @@
             tbody.innerHTML = '';
 
             if (data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No repositories found</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No repositories found</td></tr>';
                 return;
             }
 
@@ -821,11 +825,41 @@
 
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td><a href="${repo.url}" target="_blank" class="repo-link" title="Open on GitHub">${repo.name} ↗</a></td>
-                    <td>${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
-                    <td><span class="time-ago">${timeAgo}</span></td>
-                    <td><span class="author-badge">${repo.author}</span></td>
-                    <td><span class="${statusClass}">${statusText}</span></td>
+                    <td>
+                        <a href="${repo.url}" target="_blank" class="repo-link">
+                            ${repo.name} ↗
+                        </a>
+                    </td>
+                
+                    <td>
+                        ${date.toLocaleDateString()}
+                        ${date.toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        })}
+                    </td>
+                
+                    <td>
+                        <span class="time-ago">${timeAgo}</span>
+                    </td>
+                
+                    <td>
+                        <span class="author-badge">${repo.author}</span>
+                    </td>
+                
+                    <td>
+                        ${
+                            repo.private
+                            ? '<span class="old-badge">🔒 Private</span>'
+                            : '<span class="recent-badge">🌐 Public</span>'
+                        }
+                    </td>
+                
+                    <td>
+                        <span class="${statusClass}">
+                            ${statusText}
+                        </span>
+                    </td>
                 `;
                 tbody.appendChild(row);
             });
@@ -859,7 +893,7 @@
 
         function showEmptyState() {
             const tbody = document.getElementById('tableBody');
-            tbody.innerHTML = '<tr><td colspan="5" class="empty-state">Unable to load data. Please refresh or check your connection.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Unable to load data. Please refresh or check your connection.</td></tr>';
         }
 
         window.addEventListener('load', () => {
