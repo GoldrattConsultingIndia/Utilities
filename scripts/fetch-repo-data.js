@@ -66,14 +66,36 @@ async function fetchLatestCommit(repo) {
   }
 }
 
-function pickAuthor(repo, commit) {
-  return (
-    commit?.author?.login ||
-    commit?.commit?.author?.name ||
-    repo.owner?.login ||
-    repo.owner?.name ||
-    'Unknown'
-  );
+async function fetchTopContributor(repo) {
+  const contributorsUrl = new URL(`https://api.github.com/repos/${org}/${repo.name}/contributors`);
+  contributorsUrl.searchParams.set('per_page', '1');
+
+  try {
+    const contributors = await githubJson(contributorsUrl);
+    return contributors[0] || null;
+  } catch (error) {
+    console.warn(`Could not read contributors for ${repo.name}: ${error.message}`);
+    return null;
+  }
+}
+
+function isOrgName(value) {
+  return value && value.toLowerCase() === org.toLowerCase();
+}
+
+function pickAuthor(repo, commit, contributor) {
+  const candidates = [
+    commit?.commit?.author?.name,
+    commit?.commit?.committer?.name,
+    commit?.author?.login,
+    commit?.committer?.login,
+    contributor?.login,
+    contributor?.name,
+  ];
+
+  const individual = candidates.find((candidate) => candidate && !isOrgName(candidate));
+
+  return individual || repo.owner?.login || repo.owner?.name || 'Unknown';
 }
 
 async function main() {
@@ -89,6 +111,7 @@ async function main() {
 
   for (const repo of repos) {
     const commit = await fetchLatestCommit(repo);
+    const contributor = await fetchTopContributor(repo);
 
     enriched.push({
       name: repo.name,
@@ -103,7 +126,8 @@ async function main() {
       created_at: repo.created_at,
       default_branch: repo.default_branch,
       owner: repo.owner,
-      latest_commit_author: pickAuthor(repo, commit),
+      latest_commit_author: pickAuthor(repo, commit, contributor),
+      top_contributor: contributor?.login || null,
       latest_commit_sha: commit?.sha || null,
       latest_commit_date: commit?.commit?.author?.date || repo.pushed_at || repo.updated_at,
     });
