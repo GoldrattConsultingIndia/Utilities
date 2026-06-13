@@ -78,6 +78,13 @@ function pickAuthor(repo, commit) {
 
 async function main() {
   const repos = await fetchAllRepos();
+
+  if (repos.length === 0) {
+    throw new Error(
+      `No repositories were returned for ${org}. Check ORG_NAME and the REPO_DASHBOARD_PAT repository access.`
+    );
+  }
+
   const enriched = [];
 
   for (const repo of repos) {
