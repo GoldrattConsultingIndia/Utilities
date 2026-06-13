@@ -1,0 +1,27 @@
+name: Test GitHub Token
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Test Organization Access
+        env:
+          TOKEN: ${{ secrets.GH_ORG_TOKEN }}
+        run: |
+
+          echo "Checking repository count..."
+
+          curl -s \
+            -H "Authorization: token $TOKEN" \
+            "https://api.github.com/orgs/GoldrattConsultingIndia/repos?type=all&per_page=100" \
+            > repos.json
+
+          echo "Repository Count:"
+          jq length repos.json
+
+          echo "First 10 Repository Names:"
+          jq -r '.[].name' repos.json | head -10
