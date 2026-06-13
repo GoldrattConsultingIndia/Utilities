@@ -414,7 +414,7 @@
         <div class="table-wrapper">
             <h2>📋 All Repositories - Last Update</h2>
             <div class="filter-section">
-                <input type="text" id="searchInput" placeholder="Search repositories by name or author...">
+                <input type="text" id="searchInput" placeholder="Search repositories by name or latest commit author...">
                 <button id="refreshBtn" class="refresh-btn">🔄 Refresh Data</button>
                 <div class="last-updated" id="lastUpdatedTime">Never updated</div>
             </div>
@@ -422,13 +422,13 @@
             <div id="debugInfo" class="debug-info" style="display: none;"></div>
             <table id="dataTable">
                 <thead>
-                   <tr>
+                    <tr>
                         <th onclick="sortTable('name')">Repository Name <span class="sort-indicator" id="sort-name"></span></th>
                         <th onclick="sortTable('date')">Last Update <span class="sort-indicator" id="sort-date">↓</span></th>
                         <th onclick="sortTable('ago')">Time Ago <span class="sort-indicator" id="sort-ago"></span></th>
-                        <th onclick="sortTable('author')">Author <span class="sort-indicator" id="sort-author"></span></th>
+                        <th onclick="sortTable('author')">Latest Commit Author <span class="sort-indicator" id="sort-author"></span></th>
                         <th onclick="sortTable('visibility')">Visibility <span class="sort-indicator" id="sort-visibility"></span></th>
-                        <th onclick="sortTable('status')">Activity <span class="sort-indicator" id="sort-status"></span></th>
+                        <th onclick="sortTable('status')">Status <span class="sort-indicator" id="sort-status"></span></th>
                     </tr>
                 </thead>
                 <tbody id="tableBody">
@@ -492,11 +492,12 @@
             url: repo.html_url,
             date: repo.pushed_at || repo.updated_at,
             author:
+                repo.latest_commit_author ||
                 repo.owner?.login ||
                 repo.owner?.name ||
                 'Unknown',
             pushed_at: repo.pushed_at,
-            private: repo.private, language: repo.language || 'Unknown',
+            private: repo.private,
             dateObj: new Date(
                 repo.pushed_at || repo.updated_at
             )
@@ -514,7 +515,8 @@
         console.error(error);
 
         showError(
-            'repo-data.json not found. Run the GitHub Action that generates repository data.'
+            'Failed loading repository data: '
+            + error.message
         );
 
         showEmptyState();
@@ -767,8 +769,8 @@
                         bVal = b.author.toLowerCase();
                         break;
                     case 'visibility':
-                        aVal = a.private ? 1 : 0;
-                        bVal = b.private ? 1 : 0;
+                        aVal = a.private ? 'private' : 'public';
+                        bVal = b.private ? 'private' : 'public';
                         break;
                     case 'status':
                         const getStatus = (repo) => {
@@ -824,41 +826,12 @@
 
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td>
-                        <a href="${repo.url}" target="_blank" class="repo-link">
-                            ${repo.name} ↗
-                        </a>
-                    </td>
-                
-                    <td>
-                        ${date.toLocaleDateString()}
-                        ${date.toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                        })}
-                    </td>
-                
-                    <td>
-                        <span class="time-ago">${timeAgo}</span>
-                    </td>
-                
-                    <td>
-                        <span class="author-badge">${repo.author}</span>
-                    </td>
-                
-                    <td>
-                        ${
-                            repo.private
-                            ? '<span class="old-badge">🔒 Private</span>'
-                            : '<span class="recent-badge">🌐 Public</span>'
-                        }
-                    </td>
-                
-                    <td>
-                        <span class="${statusClass}">
-                            ${statusText}
-                        </span>
-                    </td>
+                    <td><a href="${repo.url}" target="_blank" class="repo-link" title="Open on GitHub">${repo.name} ↗</a></td>
+                    <td>${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                    <td><span class="time-ago">${timeAgo}</span></td>
+                    <td><span class="author-badge">${repo.author}</span></td>
+                    <td><span class="${repo.private ? 'moderate-badge' : 'recent-badge'}">${repo.private ? 'Private' : 'Public'}</span></td>
+                    <td><span class="${statusClass}">${statusText}</span></td>
                 `;
                 tbody.appendChild(row);
             });
