@@ -526,14 +526,12 @@
 }
 
         function updateDashboard() {
-            if (repositoriesData.length === 0) {
-                showEmptyState();
-                return;
-            }
-
             calculateStats();
             populateTable();
-            updateCharts();
+
+            if (repositoriesData.length > 0) {
+                updateCharts();
+            }
         }
 
         function calculateStats() {
@@ -545,10 +543,12 @@
             document.getElementById('totalRepos').textContent = repositoriesData.length;
             document.getElementById('totalContributors').textContent = authorCount;
             document.getElementById('recentRepos').textContent = recentCount;
-            
+
             if (repositoriesData.length > 0) {
                 const latestDate = new Date(repositoriesData[0].date);
                 document.getElementById('lastUpdate').textContent = latestDate.toLocaleDateString();
+            } else {
+                document.getElementById('lastUpdate').textContent = 'No data';
             }
         }
 
@@ -799,7 +799,7 @@
             tbody.innerHTML = '';
 
             if (data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No repositories found</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" class="empty-state">repo-data.json loaded, but it contains no repositories yet. Run the GitHub Action or check the REPO_DASHBOARD_PAT secret.</td></tr>';
                 return;
             }
 
