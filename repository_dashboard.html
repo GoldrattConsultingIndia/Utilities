@@ -496,7 +496,7 @@
                 repo.owner?.name ||
                 'Unknown',
             pushed_at: repo.pushed_at,
-            private: repo.private,
+            private: repo.private, language: repo.language || 'Unknown',
             dateObj: new Date(
                 repo.pushed_at || repo.updated_at
             )
@@ -514,8 +514,7 @@
         console.error(error);
 
         showError(
-            'Failed loading repository data: '
-            + error.message
+            'repo-data.json not found. Run the GitHub Action that generates repository data.'
         );
 
         showEmptyState();
