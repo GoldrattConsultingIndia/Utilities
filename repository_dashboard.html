@@ -470,83 +470,58 @@
             console.log(message);
         }
 
-        async function fetchRepositories() {
-            showLoading(true);
-            updateDebugInfo('🔄 Starting fetch...');
-            
-            try {
-                const repos = [];
-                let page = 1;
-                let hasMore = true;
-                const perPage = 100;
+       async function fetchRepositories() {
 
-                while (hasMore) {
-                    const url = `${GITHUB_API_BASE}/orgs/${ORG_NAME}/repos?per_page=${perPage}&page=${page}&sort=updated&direction=desc&t=${Date.now()}`;
-                    
-                    updateDebugInfo(`📥 Fetching page ${page}... (URL: ${url})`);
-                    console.log(`Fetching: ${url}`);
+    showLoading(true);
 
-                    const response = await Promise.race([
-    fetch(url, {
-        headers: {
-            'Accept': 'application/vnd.github.v3+json'
+    try {
+
+        const response = await fetch(
+            './data/repo-data.json?t=' + Date.now()
+        );
+
+        if (!response.ok) {
+            throw new Error('Unable to load repo-data.json');
         }
-    }),
-    new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('API request timeout')), API_TIMEOUT)
-    )
-]);
 
-                    if (!response.ok) {
-                        throw new Error(`API error: ${response.status} ${response.statusText}`);
-                    }
+        const repos = await response.json();
 
-                    const data = await response.json();
-                    
-                    if (!Array.isArray(data)) {
-                        throw new Error('Invalid response format');
-                    }
+        repositoriesData = repos.map(repo => ({
+            name: repo.name,
+            url: repo.html_url,
+            date: repo.pushed_at || repo.updated_at,
+            author:
+                repo.owner?.login ||
+                repo.owner?.name ||
+                'Unknown',
+            pushed_at: repo.pushed_at,
+            private: repo.private,
+            dateObj: new Date(
+                repo.pushed_at || repo.updated_at
+            )
+        }))
+        .sort((a,b) =>
+            new Date(b.date) - new Date(a.date)
+        );
 
-                    if (data.length === 0) {
-                        hasMore = false;
-                    } else {
-                        repos.push(...data);
-                        updateDebugInfo(`✅ Page ${page}: ${data.length} repos (Total: ${repos.length})`);
-                        page++;
+        updateDashboard();
+        updateLastUpdatedTime();
 
-                        if (data.length < perPage) {
-                            hasMore = false;
-                        }
-                    }
+    }
+    catch(error){
 
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                }
+        console.error(error);
 
-                updateDebugInfo(`✨ Loaded ${repos.length} total repositories`);
+        showError(
+            'Failed loading repository data: '
+            + error.message
+        );
 
-                repositoriesData = repos.map(repo => ({
-                    name: repo.name,
-                    url: repo.html_url,
-                    date: repo.pushed_at || repo.updated_at,
-                    author: repo.owner.login,
-                    pushed_at: repo.pushed_at || repo.updated_at,
-                    dateObj: new Date(repo.pushed_at || repo.updated_at)
-                })).sort((a, b) => new Date(b.date) - new Date(a.date));
+        showEmptyState();
+    }
 
-                updateDashboard();
-                updateLastUpdatedTime();
-                showLoading(false);
-                
-            } catch (error) {
-                console.error('Fetch error:', error);
-                updateDebugInfo(`❌ Error: ${error.message}`);
-                showError(`Failed to fetch: ${error.message}`);
-                showLoading(false);
-                if (repositoriesData.length === 0) {
-                    showEmptyState();
-                }
-            }
-        }
+    showLoading(false);
+}
 
         function updateDashboard() {
             if (repositoriesData.length === 0) {
